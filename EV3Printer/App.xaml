@@ -4,8 +4,12 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:EV3Printer"
     xmlns:vm="using:EV3Printer.ViewModels"
+    xmlns:converters="using:EV3Printer.Converters"
     RequestedTheme="Light">
     <Application.Resources>
+        <converters:BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <converters:BooleanToVisibilityConverter x:Key="RevBoolToVis" IsReversed="True"/>
+        <converters:PointerEventArgsToPenConverter x:Key="PointerEventArgsToPenConverter"/>
         <vm:ViewModelLocator x:Key="Locator"/>
     </Application.Resources>
 </Application>

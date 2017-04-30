@@ -6,32 +6,67 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:win2d="using:Microsoft.Graphics.Canvas.UI.Xaml"
+    xmlns:Interactivity="using:Microsoft.Xaml.Interactivity" 
+    xmlns:Core="using:Microsoft.Xaml.Interactions.Core"
     DataContext="{Binding Main, Source={StaticResource Locator}}"
     mc:Ignorable="d">
 
-    <Grid x:Name="LayoutRoot" Margin="10">
+    <Grid x:Name="LayoutRoot">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="96"/>
-        </Grid.ColumnDefinitions>
-        <TextBlock Style="{ThemeResource HeaderTextBlockStyle}" Grid.ColumnSpan="2">
-			<Run Text="PLOT PRINT3R"/>
-        </TextBlock>
-        <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding ServerAddress, Mode=TwoWay}"/>
-        <Button Grid.Row="1" Grid.Column="1"  HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Command="{Binding ConnectCommand}" CommandParameter="{Binding ServerAddress, Mode=OneWay}">CONNECT</Button>
-        <TextBox Grid.Row="2" Grid.Column="0" Text="{Binding RawCommand, Mode=TwoWay}"/>
-        <Button Grid.Row="2" Grid.Column="1"  HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Command="{Binding SendCommand}" CommandParameter="{Binding RawCommand, Mode=OneWay}">SEND</Button>
-        <TextBox Grid.Row="3" Grid.Column="0" Text="{Binding Text2Draw, Mode=TwoWay}"/>
-        <Button Grid.Row="3" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">TEXT</Button>
-        <win2d:CanvasAnimatedControl Grid.Row="4" Grid.ColumnSpan="2" x:Name="canvas" Draw="canvas_Draw"  Update="canvas_Update" CreateResources="canvas_CreateResources" ClearColor="Black" PointerMoved="canvas_PointerMoved" PointerPressed="canvas_PointerPressed" PointerReleased="canvas_PointerReleased" />
+        <Grid Grid.Row="0" Margin="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition/>
+                <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Style="{ThemeResource HeaderTextBlockStyle}" Grid.ColumnSpan="3">
+			    <Run Text="PLOT PRINT3R"/>
+            </TextBlock>
+            <ListBox Grid.Column="1" ItemsSource="{Binding Logs}"/>
+        </Grid>
+        <StackPanel Grid.Row="1" Background="DarkRed" Orientation="Vertical" Padding="10" Visibility="{Binding IsConnected, Converter={StaticResource RevBoolToVis}}">
+            <TextBlock Text="Enter EV3 Brick Address" Style="{StaticResource CaptionTextBlockStyle}"/>
+            <TextBox Text="{Binding ServerAddress, Mode=TwoWay}"/>
+            <Button HorizontalAlignment="Right" VerticalAlignment="Stretch" Command="{Binding ConnectCommand}" CommandParameter="{Binding ServerAddress, Mode=OneWay}">CONNECT</Button>
+        </StackPanel>
+        <win2d:CanvasAnimatedControl Grid.Row="2" Grid.ColumnSpan="2" x:Name="canvas" Draw="canvas_Draw"  Update="canvas_Update" CreateResources="canvas_CreateResources" ClearColor="Black" >
+            <Interactivity:Interaction.Behaviors>
+                <Core:EventTriggerBehavior EventName="PointerPressed">
+                    <Core:InvokeCommandAction
+                        Command="{Binding PenCommand, Mode=OneWay}"
+                        InputConverter="{StaticResource PointerEventArgsToPenConverter}"
+                        InputConverterParameter="{Binding ElementName=canvas}" />
+                </Core:EventTriggerBehavior>
+                <Core:EventTriggerBehavior EventName="PointerMoved">
+                    <Core:InvokeCommandAction
+                        Command="{Binding PenCommand, Mode=OneWay}"
+                        InputConverter="{StaticResource PointerEventArgsToPenConverter}"
+                        InputConverterParameter="{Binding ElementName=canvas}" />
+                </Core:EventTriggerBehavior>
+                <Core:EventTriggerBehavior EventName="PointerReleased">
+                    <Core:InvokeCommandAction
+                        Command="{Binding PenCommand, Mode=OneWay}"
+                        InputConverter="{StaticResource PointerEventArgsToPenConverter}"
+                        InputConverterParameter="{Binding ElementName=canvas}" />
+                </Core:EventTriggerBehavior>
+            </Interactivity:Interaction.Behaviors>
+        </win2d:CanvasAnimatedControl>
+        <CommandBar Grid.Row="3" >
+            <CommandBar.Content>
+                <TextBox VerticalAlignment="Stretch" HorizontalAlignment="Stretch" MinWidth="256" Text="{Binding RawCommand, Mode=TwoWay}"/>
+            </CommandBar.Content>
+            <AppBarButton Icon="Play" Label="Send" Command="{Binding RawCommand}" CommandParameter="{Binding RawCommand, Mode=OneWay}"/>
+            <AppBarSeparator/>
+            <AppBarToggleButton x:Name="editBttn" Icon="Edit" Label="Draw" Command="{Binding DrawCommand}" CommandParameter="{Binding ElementName=editBttn, Path=IsChecked}" IsChecked="{Binding IsInDrawMode, Mode=TwoWay}"/>
+            <AppBarToggleButton x:Name="textBttn" Icon="FontSize" Label="Add Text" Command="{Binding TextCommand}"  CommandParameter="{Binding ElementName=textBttn, Path=IsChecked}" IsChecked="{Binding IsInTextMode, Mode=TwoWay}"/>
+            <AppBarButton Icon="Delete" Label="Clear" Command="{Binding ClearCommand}"/>
+        </CommandBar>
+        <!--
         <TextBlock Grid.Row="5" Grid.ColumnSpan="2" Text="{Binding LastLog}"/>
+        -->
     </Grid>
 </Page>
