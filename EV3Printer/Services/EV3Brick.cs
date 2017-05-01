@@ -62,7 +62,9 @@ namespace EV3Printer.Services
                 traceEventArg.Completed += new EventHandler<SocketAsyncEventArgs>(delegate (object ss, SocketAsyncEventArgs ee)
                 {
                     byte[] buffer = ee.Buffer;
-                    System.Diagnostics.Debug.WriteLine(System.Text.Encoding.ASCII.GetString(buffer, 0, buffer.Length));
+                    string errorLog = System.Text.Encoding.ASCII.GetString(buffer, 0, buffer.Length);
+                    OnLog?.Invoke(this, new LogEventArgs(errorLog));
+                    System.Diagnostics.Debug.WriteLine(errorLog);
                 });
                 traceEventArg.SetBuffer(new byte[1024], 0, 1024);
                 _socket.ReceiveAsync(traceEventArg);
@@ -78,12 +80,18 @@ namespace EV3Printer.Services
         {
             if ( IsConnected )
             {
+                OnLog?.Invoke(this, new LogEventArgs(string.Format("Cmd: {0}", command)));
+
                 SocketAsyncEventArgs completeArgs = new SocketAsyncEventArgs();
                 byte[] buffer = Encoding.ASCII.GetBytes(string.Format("{0}\0", command));
                 completeArgs.SetBuffer(buffer, 0, buffer.Length);
                 completeArgs.UserToken = _socket;
                 completeArgs.RemoteEndPoint = _socket.RemoteEndPoint;
                 _socket.SendAsync(completeArgs);
+            }
+            else
+            {
+                OnLog?.Invoke(this, new LogEventArgs(string.Format("Ignored: {0}", command)));
             }
         }
     }
