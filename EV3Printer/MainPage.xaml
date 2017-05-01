@@ -32,7 +32,11 @@
                     <AppBarToggleButton x:Name="textBttn" Icon="FontSize" Label="Add Text" Command="{Binding TextCommand}"  CommandParameter="{Binding ElementName=textBttn, Path=IsChecked}" IsChecked="{Binding IsInTextMode, Mode=TwoWay}"/>
                     <AppBarButton Icon="Play" Label="Print" Command="{Binding PrintCommand}" CommandParameter="{Binding ElementName=inkCanvas, Path=InkPresenter.StrokeContainer}"/>
                     <AppBarButton Icon="Page" Label="New Page" Command="{Binding NewPageCommand}" />
+                    <AppBarButton Icon="NewWindow" Label="Drop Page" Command="{Binding DropPageCommand}" />
                     <AppBarButton Icon="Delete" Label="Clear" Command="{Binding ClearCommand}" CommandParameter="{Binding ElementName=inkCanvas, Path=InkPresenter.StrokeContainer}"/>
+                    <CommandBar.SecondaryCommands>
+                        <AppBarButton Icon="Like" Label="Test Image" Command="{Binding TestCommand}" CommandParameter="{Binding ElementName=inkCanvas, Path=InkPresenter.StrokeContainer}"/>
+                    </CommandBar.SecondaryCommands>
                 </CommandBar>
             </Grid>
         </PivotItem>
@@ -41,21 +45,21 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="auto"/>
                     <RowDefinition Height="auto"/>
-                    <RowDefinition Height="auto"/>
-                    <RowDefinition Height="auto"/>
-                    <RowDefinition Height="auto"/>
-                    <RowDefinition Height="auto"/>
-                    <RowDefinition Height="auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Text="Enter EV3 Brick Address" Style="{StaticResource CaptionTextBlockStyle}"/>
-                <TextBox Grid.Row="1" Text="{Binding ServerAddress, Mode=TwoWay}"/>
-                <Button Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Stretch" Command="{Binding ConnectCommand}" CommandParameter="{Binding ServerAddress, Mode=OneWay}">CONNECT</Button>
-                <TextBlock Grid.Row="3" Text="Raw Command" Style="{StaticResource CaptionTextBlockStyle}"/>
-                <TextBox Grid.Row="4" HorizontalAlignment="Stretch" Text="{Binding RawCommand, Mode=TwoWay}"/>
-                <Button Grid.Row="5" HorizontalAlignment="Right" Command="{Binding SendCommand}" CommandParameter="{Binding RawCommand, Mode=OneWay}">SEND</Button>
-                <TextBlock Grid.Row="6" Text="Logs" Style="{StaticResource CaptionTextBlockStyle}"/>
-                <ListBox Grid.Row="7" ItemsSource="{Binding Logs}" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" custom:ListBoxBehavior.AutoScrollToEnd="True" ScrollViewer.HorizontalScrollMode="Auto" />
+                <StackPanel Orientation="Vertical">
+                    <TextBlock Text="Enter EV3 Brick Address" Style="{StaticResource CaptionTextBlockStyle}"/>
+                    <TextBox Text="{Binding ServerAddress, Mode=TwoWay}"/>
+                    <Button HorizontalAlignment="Right" VerticalAlignment="Stretch" Command="{Binding ConnectCommand}" CommandParameter="{Binding ServerAddress, Mode=OneWay}">CONNECT</Button>
+                    <TextBlock Text="Raw Command" Style="{StaticResource CaptionTextBlockStyle}"/>
+                    <TextBox HorizontalAlignment="Stretch" Text="{Binding RawCommand, Mode=TwoWay}"/>
+                    <Button HorizontalAlignment="Right" Command="{Binding SendCommand}" CommandParameter="{Binding RawCommand, Mode=OneWay}">SEND</Button>
+                    <Slider Header="Simplification Threshold" HorizontalAlignment="Stretch" Maximum="200" Minimum="0" Value="{Binding SimplificationFactor, Mode=TwoWay}"/>
+                    <ToggleSwitch Header="High Definition Simplification" IsOn="{Binding HighDefSimplification, Mode=TwoWay}"/>
+                    <ToggleSwitch Header="Simplification (Debug)" IsOn="{Binding SimplificationPreview, Mode=TwoWay}"/>
+                </StackPanel>
+                <TextBlock Grid.Row="1" Text="Logs" Style="{StaticResource CaptionTextBlockStyle}"/>
+                <ListBox Grid.Row="2" ItemsSource="{Binding Logs}" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" custom:ListBoxBehavior.AutoScrollToEnd="True" ScrollViewer.HorizontalScrollMode="Auto" />
             </Grid>
         </PivotItem>
     </Pivot>

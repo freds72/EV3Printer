@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
 using Windows.Foundation;
@@ -58,6 +59,13 @@ namespace EV3Printer.ViewModels
             }
         ));
 
+        private RelayCommand _dropPageCommand;
+        public RelayCommand DropPageCommand => _dropPageCommand ?? (_dropPageCommand = new RelayCommand(
+            () => {
+                _brick.Send("FEED;-750");
+            }
+        ));
+
         static double Clamp(double value, double min, double max)
         {
             return Math.Max(Math.Min(value, max), min);
@@ -65,29 +73,62 @@ namespace EV3Printer.ViewModels
 
         private RelayCommand<InkStrokeContainer> _printCommand;
         public RelayCommand<InkStrokeContainer> PrintCommand => _printCommand ?? (_printCommand = new RelayCommand<InkStrokeContainer>(
-            strokes => {                
+            strokes =>
+            {
                 Logs.Add(string.Format("Send {0} stroke(s).", strokes.GetStrokes().Count));
+                List<List<Point>> printerStrokes = new List<List<Point>>();
                 // max X: 980
                 // max Y: 670                
-                foreach(InkStroke stroke in strokes.GetStrokes())
+                int geometryCount = 0;
+                int simplifiedGeometryCount = 0;
+                foreach (InkStroke stroke in strokes.GetStrokes())
                 {
-                    var points = simplify(stroke.GetInkPoints(), 0.5, false);
+                    var inkPoints = stroke.GetInkPoints();
+                    geometryCount += inkPoints.Count;
+                    var points = simplify(inkPoints, SimplificationFactor / 100.0, HighDefSimplification);
+                    simplifiedGeometryCount += points.Count;
+                    if ( SimplificationPreview )
+                        printerStrokes.Add(points);
                     for (int i = 0; i < points.Count; i++)
                     {
-                    // move to position
-                    _brick.Send(string.Format("MOV;{0:#.##};{1:#.##}",
-                        -980 * Clamp(points[i].X, 20, 210 - 20) / 210,
-                        -670 * Clamp(points[i].Y, 30, 297 - 30) / 297));
+                        // move to position
+                        _brick.Send(string.Format("MOV;{0:#.##};{1:#.##}",
+                            -980 * Clamp(points[i].X, 20, 210 - 20) / 210,
+                            -670 * Clamp(points[i].Y, 30, 297 - 30) / 297));
                         // first point = start drawing
-                        if ( i == 0 )
+                        if (i == 0)
                             _brick.Send("DWN");
                     }
                     // done with segment
                     _brick.Send("UP");
                 }
-            },
-            strokes => { return true; }
+                // draw "printer" strokes
+                InkStrokeBuilder builder = new InkStrokeBuilder();
+
+                if (SimplificationPreview)
+                {
+                    printerStrokes
+                    .ForEach(
+                        ps =>
+                        {
+                            var tmpStroke = builder.CreateStrokeFromInkPoints(ps.Select(p => new InkPoint(p, 1)), Matrix3x2.Identity);
+                            strokes.AddStroke(tmpStroke);
+                        }
+                    );
+                }
+
+                Logs.Add(string.Format("Geometry count: {0} / Simplified: {1} [Factor: {2} HD: {3}]", geometryCount, simplifiedGeometryCount, SimplificationFactor / 10, HighDefSimplification));
+            }
         ));
+
+        private RelayCommand<InkStrokeContainer> _testCommand;
+        public RelayCommand<InkStrokeContainer> TestCommand => _testCommand ?? (_testCommand = new RelayCommand<InkStrokeContainer>(
+            strokes =>
+            {
+                InkStrokeBuilder builder = new InkStrokeBuilder();
+                var tmpStroke = builder.CreateStrokeFromInkPoints(new Point[] { new Point(0, 0), new Point(210, 297) }.Select(p => new InkPoint(p, 1)), Matrix3x2.Identity);
+                strokes.AddStroke(tmpStroke);
+            }));
 
         private RelayCommand<InkStrokeContainer> _clearCommand;
         public RelayCommand<InkStrokeContainer> ClearCommand => _clearCommand ?? (_clearCommand = new RelayCommand<InkStrokeContainer>(
@@ -98,6 +139,16 @@ namespace EV3Printer.ViewModels
         ));
 
         public ObservableCollection<string> Logs { get; private set; }
+
+        private double _simplification = 50;
+        public double SimplificationFactor
+        {
+            get { return _simplification; }
+            set
+            {
+                Set(ref _simplification, value);
+            }
+        }
 
         private EditModeType _mode = EditModeType.None;
         public EditModeType EditMode
@@ -161,6 +212,16 @@ namespace EV3Printer.ViewModels
             }
         }
 
+        bool _highDef = false;
+        public bool HighDefSimplification
+        {
+            get { return _highDef; }
+            set
+            {
+                Set(ref _highDef, value);
+            }
+        }
+
         bool _isConnected;
         public bool IsConnected
         {
@@ -168,6 +229,16 @@ namespace EV3Printer.ViewModels
             set
             {
                 Set(ref _isConnected, value);
+            }
+        }
+
+        bool _simplificationPreview;
+        public bool SimplificationPreview
+        {
+            get { return _simplificationPreview; }
+            set
+            {
+                Set(ref _simplificationPreview, value);
             }
         }
 

@@ -126,7 +126,7 @@ namespace EV3PrinterDriver
                         client.GetStream().Write(logBuffer, 0, logBuffer.Length);
 #endif
                         motors.MainMotorSpeed = 64;
-                        motors.SecondaryMotorSpeed = 64;
+                        motors.SecondaryMotorSpeed = 113; // adjust Y motor speed as X motor produces almost twice as much speed (0.56)
                         motors.HandMotorSpeed = 127;
                         data = null;
 
