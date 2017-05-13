@@ -9,9 +9,9 @@
     xmlns:Interactivity="using:Microsoft.Xaml.Interactivity" 
     xmlns:Core="using:Microsoft.Xaml.Interactions.Core"
     xmlns:custom="using:EV3Printer.Behaviors"
-    DataContext="{Binding Main, Source={StaticResource Locator}}"    
+    xmlns:converters="using:EV3Printer.Converters"
+    DataContext="{Binding Main, Source={StaticResource Locator}}"        
     mc:Ignorable="d">
-
     <Pivot>
         <PivotItem Header="Create">
             <Grid x:Name="LayoutRoot">
@@ -40,6 +40,27 @@
                 </CommandBar>
             </Grid>
         </PivotItem>
+        <PivotItem Header="Scan">
+            <Grid x:Name="LayoutRoot2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Viewbox Grid.Row="0" Stretch="Uniform" HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="4">
+                    <Grid>
+                        <Rectangle StrokeThickness="1" Stroke="Black" IsHitTestVisible="False" Fill="{x:Null}"/>
+                        <Rectangle Margin="20 30 20 30" StrokeThickness="1" Stroke="LightGray" StrokeDashArray="4 4" IsHitTestVisible="False"  Fill="{x:Null}"/>
+                        <!-- -->
+                    </Grid>
+                </Viewbox>
+                <CommandBar Grid.Row="1" >
+                    <AppBarButton Icon="Scan" Label="Scan" Command="{Binding ScanCommand}" />
+                    <AppBarButton Icon="Page" Label="New Page" Command="{Binding NewPageCommand}" />
+                    <AppBarButton Icon="NewWindow" Label="Drop Page" Command="{Binding DropPageCommand}" />
+                </CommandBar>
+            </Grid>
+        </PivotItem>
         <PivotItem Header="System">
             <Grid Padding="10">
                 <Grid.RowDefinitions>
@@ -48,15 +69,19 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
                 <StackPanel Orientation="Vertical">
+                    <TextBlock Style="{StaticResource TitleTextBlockStyle}">Communication</TextBlock>
                     <TextBlock Text="Enter EV3 Brick Address" Style="{StaticResource CaptionTextBlockStyle}"/>
                     <TextBox Text="{Binding ServerAddress, Mode=TwoWay}"/>
                     <Button HorizontalAlignment="Right" VerticalAlignment="Stretch" Command="{Binding ConnectCommand}" CommandParameter="{Binding ServerAddress, Mode=OneWay}">CONNECT</Button>
                     <TextBlock Text="Raw Command" Style="{StaticResource CaptionTextBlockStyle}"/>
                     <TextBox HorizontalAlignment="Stretch" Text="{Binding RawCommand, Mode=TwoWay}"/>
                     <Button HorizontalAlignment="Right" Command="{Binding SendCommand}" CommandParameter="{Binding RawCommand, Mode=OneWay}">SEND</Button>
+                    <TextBlock Style="{StaticResource TitleTextBlockStyle}">Print</TextBlock>
                     <Slider Header="Simplification Threshold" HorizontalAlignment="Stretch" Maximum="200" Minimum="0" Value="{Binding SimplificationFactor, Mode=TwoWay}"/>
                     <ToggleSwitch Header="High Definition Simplification" IsOn="{Binding HighDefSimplification, Mode=TwoWay}"/>
                     <ToggleSwitch Header="Simplification (Debug)" IsOn="{Binding SimplificationPreview, Mode=TwoWay}"/>
+                    <TextBlock Style="{StaticResource TitleTextBlockStyle}">Scan</TextBlock>
+                    <Slider Header="Scan Resolution" HorizontalAlignment="Stretch" Maximum="10" Minimum="1" Value="{Binding ScanResolution, Mode=TwoWay}"/>
                 </StackPanel>
                 <TextBlock Grid.Row="1" Text="Logs" Style="{StaticResource CaptionTextBlockStyle}"/>
                 <ListBox Grid.Row="2" ItemsSource="{Binding Logs}" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" custom:ListBoxBehavior.AutoScrollToEnd="True" ScrollViewer.HorizontalScrollMode="Auto" />

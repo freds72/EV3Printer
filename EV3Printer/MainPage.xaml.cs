@@ -44,7 +44,7 @@ namespace EV3Printer
             InkDrawingAttributes drawingAttributes = new InkDrawingAttributes();
             drawingAttributes.Color = Windows.UI.Colors.Black;
             drawingAttributes.IgnorePressure = false;
-            drawingAttributes.FitToCurve = true;
+            drawingAttributes.FitToCurve = false;
             inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);                      
         }
     }

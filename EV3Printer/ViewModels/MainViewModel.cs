@@ -1,4 +1,6 @@
-﻿using EV3Printer.Services;
+﻿using EV3Printer.Converters;
+using EV3Printer.Models;
+using EV3Printer.Services;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
 using GalaSoft.MvvmLight.Threading;
@@ -71,55 +73,60 @@ namespace EV3Printer.ViewModels
             return Math.Max(Math.Min(value, max), min);
         }
 
+        private InkStrokesToPointsConverter _inkStrokeConverter = new InkStrokesToPointsConverter();
         private RelayCommand<InkStrokeContainer> _printCommand;
         public RelayCommand<InkStrokeContainer> PrintCommand => _printCommand ?? (_printCommand = new RelayCommand<InkStrokeContainer>(
             strokes =>
             {
-                Logs.Add(string.Format("Send {0} stroke(s).", strokes.GetStrokes().Count));
-                List<List<Point>> printerStrokes = new List<List<Point>>();
+                var pointStrokes = _inkStrokeConverter.Convert(strokes, SimplificationFactor / 100.0, HighDefSimplification);
+                Logs.Add(string.Format("Stroke Collections: {0}", pointStrokes.Count));
                 // max X: 980
                 // max Y: 670                
-                int geometryCount = 0;
-                int simplifiedGeometryCount = 0;
-                foreach (InkStroke stroke in strokes.GetStrokes())
+                foreach (List<Point> stroke in pointStrokes)
                 {
-                    var inkPoints = stroke.GetInkPoints();
-                    geometryCount += inkPoints.Count;
-                    var points = simplify(inkPoints, SimplificationFactor / 100.0, HighDefSimplification);
-                    simplifiedGeometryCount += points.Count;
-                    if ( SimplificationPreview )
-                        printerStrokes.Add(points);
-                    for (int i = 0; i < points.Count; i++)
+                    Logs.Add(string.Format("Strokes: {0}", stroke.Count));
+                    for (int i = 0; i < stroke.Count; i++)
                     {
                         // move to position
                         _brick.Send(string.Format("MOV;{0:#.##};{1:#.##}",
-                            -980 * Clamp(points[i].X, 20, 210 - 20) / 210,
-                            -670 * Clamp(points[i].Y, 30, 297 - 30) / 297));
+                            -980 * Clamp(stroke[i].X, 20, 210 - 20) / 210,
+                            -670 * Clamp(stroke[i].Y, 30, 297 - 30) / 297));
                         // first point = start drawing
                         if (i == 0)
                             _brick.Send("DWN");
                     }
                     // done with segment
                     _brick.Send("UP");
-                }
-                // draw "printer" strokes
-                InkStrokeBuilder builder = new InkStrokeBuilder();
-
-                if (SimplificationPreview)
-                {
-                    printerStrokes
-                    .ForEach(
-                        ps =>
-                        {
-                            var tmpStroke = builder.CreateStrokeFromInkPoints(ps.Select(p => new InkPoint(p, 1)), Matrix3x2.Identity);
-                            strokes.AddStroke(tmpStroke);
-                        }
-                    );
-                }
-
-                Logs.Add(string.Format("Geometry count: {0} / Simplified: {1} [Factor: {2} HD: {3}]", geometryCount, simplifiedGeometryCount, SimplificationFactor / 10, HighDefSimplification));
+                }                
             }
         ));
+
+        int _scanSession = 0;
+        private RelayCommand _stopScanCommand;
+        public RelayCommand StopScanCommand => _stopScanCommand ?? (_stopScanCommand = new RelayCommand(
+            () => { _scanSession = 0;
+                _brick.Send("SCAN;0");
+            }));
+
+        private RelayCommand _scanCommand;
+        public RelayCommand ScanCommand => _scanCommand ?? (_scanCommand = new RelayCommand(
+            () => {
+                // init
+                _scanSession++;
+                _brick.Send("SCAN;1");
+                _brick.Send(string.Format("MOV;{0:#.##};{1:#.##}", 0, 0));
+                bool _reverse = false;
+                for (int i = 0; i < 670; i += _scanResolution)
+                {
+                    // stop?
+                    if (_scanSession == 0) break;
+
+                    _brick.Send(string.Format("MOV;{0:#.##};{1:#.##}", _reverse?0:-970, i));
+                    _reverse = !_reverse;
+                }
+                _brick.Send("SCAN;0");
+            }));
+
 
         private RelayCommand<InkStrokeContainer> _testCommand;
         public RelayCommand<InkStrokeContainer> TestCommand => _testCommand ?? (_testCommand = new RelayCommand<InkStrokeContainer>(
@@ -147,6 +154,16 @@ namespace EV3Printer.ViewModels
             set
             {
                 Set(ref _simplification, value);
+            }
+        }
+
+        private int _scanResolution = 1;
+        public int ScanResolution
+        {
+            get { return _scanResolution; }
+            set
+            {
+                Set(ref _scanResolution, value);
             }
         }
 
@@ -263,121 +280,6 @@ namespace EV3Printer.ViewModels
         {
             DispatcherHelper.CheckBeginInvokeOnUI(
                 () => Logs.Add(e.Message));
-        }
-
-        // taken from: http://mourner.github.io/simplify-js/
-        // square distance between 2 points
-        double getSqDist(Point p1, Point p2)
-        {
-            var dx = p1.X - p2.X;
-            var dy = p1.Y - p2.Y;
-
-            return dx * dx + dy * dy;
-        }
-
-        // square distance from a point to a segment
-        double getSqSegDist(Point p, Point p1, Point p2)
-        {
-
-            var x = p1.X;
-            var y = p1.Y;
-            var dx = p2.X - x;
-            var dy = p2.Y - y;
-
-            if (dx != 0 || dy != 0)
-            {
-                var t = ((p.X - x) * dx + (p.Y - y) * dy) / (dx * dx + dy * dy);
-
-                if (t > 1)
-                {
-                    x = p2.X;
-                    y = p2.Y;
-                }
-                else if (t > 0)
-                {
-                    x += dx * t;
-                    y += dy * t;
-                }
-            }
-
-            dx = p.X - x;
-            dy = p.Y - y;
-
-            return dx * dx + dy * dy;
-        }
-        // rest of the code doesn't care about point format
-
-        // basic distance-based simplification
-        List<Point> simplifyRadialDist(IReadOnlyList<InkPoint> points, double sqTolerance)
-        {
-            var prevPoint = points[0].Position;
-            var newPoints = new List<Point>();
-            Point point;
-
-            for(int i=1;i<points.Count;i++)
-            {
-                point = points[i].Position;
-
-                if (getSqDist(point, prevPoint) > sqTolerance)
-                {
-                    newPoints.Add(point);
-                    prevPoint = point;
-                }
-            }
-
-            if (prevPoint != point) newPoints.Add(point);
-
-            return newPoints;
-        }
-
-        void simplifyDPStep(IReadOnlyList<InkPoint> points, int first, int last, double sqTolerance, List<Point> simplified)
-        {
-            var maxSqDist = sqTolerance;
-            int index = 0;
-
-            for (int i = first + 1; i < last; i++)
-            {
-                var sqDist = getSqSegDist(points[i].Position, points[first].Position, points[last].Position);
-
-                if (sqDist > maxSqDist)
-                {
-                    index = i;
-                    maxSqDist = sqDist;
-                }
-            }
-
-            if (maxSqDist > sqTolerance)
-            {
-                if (index - first > 1) simplifyDPStep(points, first, index, sqTolerance, simplified);
-                simplified.Add(points[index].Position);
-                if (last - index > 1) simplifyDPStep(points, index, last, sqTolerance, simplified);
-            }
-        }
-
-        // simplification using Ramer-Douglas-Peucker algorithm
-        List<Point> simplifyDouglasPeucker(IReadOnlyList<InkPoint> points, double sqTolerance)
-        {
-            var last = points.Count - 1;
-
-            var simplified = new List<Point>();
-            simplified.Add(points[0].Position);
-            simplifyDPStep(points, 0, last, sqTolerance, simplified);
-            simplified.Add(points[last].Position);
-
-            return simplified;
-        }
-
-        // both algorithms combined for awesome performance
-        List<Point> simplify(IReadOnlyList<InkPoint> points, double tolerance, bool highestQuality)
-        {
-            if (points.Count <= 2) return points.Select(p => p.Position).ToList();
-
-            var sqTolerance = tolerance * tolerance;
-
-            var tmp = highestQuality ? points.Select(p => p.Position).ToList() : simplifyRadialDist(points, sqTolerance);
-            tmp = simplifyDouglasPeucker(points, sqTolerance);
-
-            return tmp;
-        }
+        }       
     }
 }

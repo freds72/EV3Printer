@@ -42,11 +42,22 @@
     <Reference Include="System.Data" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Collections\MotorSettingCollection.cs" />
+    <Compile Include="Commands\HandCommand.cs" />
+    <Compile Include="Commands\IRobotCommand.cs" />
+    <Compile Include="Commands\FeedCommand.cs" />
+    <Compile Include="Commands\ScanCommand.cs" />
+    <Compile Include="RobotSetup.cs" />
+    <Compile Include="Robots\IPrinterRobot.cs" />
+    <Compile Include="Robots\IRobot.cs" />
+    <Compile Include="Robots\IScannerRobot.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="RobotCommandFactory.cs" />
-    <Compile Include="RobotCommands.cs" />
-    <Compile Include="RobotMotors.cs" />
+    <Compile Include="Commands\RobotCommandFactory.cs" />
+    <Compile Include="PrinterRobot.cs" />
+    <Compile Include="RobotBase.cs" />
+    <Compile Include="Commands\MoveCommand.cs" />
+    <Compile Include="ScannerRobot.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

@@ -1,4 +1,4 @@
-﻿using EV3PrinterDriver.RoboCommands;
+﻿using EV3PrinterDriver.Commands;
 using MonoBrickFirmware.Display;
 using MonoBrickFirmware.Movement;
 using MonoBrickFirmware.Sensors;
@@ -8,7 +8,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text;
+using System.Threading;
 
 namespace EV3PrinterDriver
 {
@@ -16,6 +18,10 @@ namespace EV3PrinterDriver
     {
         static void Main(string[] args)
         {
+            // for number conversion
+            Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+            Thread.CurrentThread.CurrentUICulture = System.Globalization.CultureInfo.InstalledUICulture;
+
             ButtonEvents buttons = new ButtonEvents();
             TcpListener server = null;
             TcpClient client = null;
@@ -30,7 +36,7 @@ namespace EV3PrinterDriver
                 run = false;
             };
 
-            LcdConsole.WriteLine("EV3Printer 1.0");
+            LcdConsole.WriteLine("EV3Printer 2.1");
 
             float mainRatio = 1.667f;
             float secondaryRatio = 3.0f;
@@ -38,9 +44,13 @@ namespace EV3PrinterDriver
 #if DUMPLOGS
             StringBuilder logs = new StringBuilder();
 #endif
-            using (RobotMotors motors = new RobotMotors(MotorPort.OutA, MotorPort.OutB, MotorPort.OutC, SensorPort.In1) { MainMotorRatio = mainRatio, SecondaryMotorRatio = secondaryRatio, HandMotorRatio = handRatio })
+            using (PrinterRobot robot = new PrinterRobot() { })
             {
-                EV3TouchSensor sensor1 = new EV3TouchSensor(SensorPort.In1);
+                robot.RatioSettings[RobotSetup.XPort] = mainRatio;
+                robot.RatioSettings[RobotSetup.YPort] = secondaryRatio;
+                robot.RatioSettings[RobotSetup.PenPort] = handRatio;
+
+                EV3TouchSensor sensor1 = new EV3TouchSensor(RobotSetup.XResetPort);
                 
                 int pause = 0;
                 buttons.EnterReleased += () =>
@@ -49,17 +59,19 @@ namespace EV3PrinterDriver
                 };
                 int currentPause = 0;
 
-                motors.Calibrate(step =>
+                LcdConsole.WriteLine("Calibrating...");
+
+                robot.Calibrate(step =>
                 {
                     if (!run) return true;
                     switch (step)
                     {
-                        case RobotMotors.CalibrationSteps.X:
+                        case PrinterRobot.CalibrationSteps.X:
                             if (sensor1.IsPressed())
                                 return true;
                             break;
 
-                        case RobotMotors.CalibrationSteps.Pause:
+                        case PrinterRobot.CalibrationSteps.Pause:
                             if (currentPause != pause)
                             {
                                 currentPause = pause;
@@ -89,12 +101,11 @@ namespace EV3PrinterDriver
                 return;
 
             // main loop
-            Lcd.Clear();
-            Lcd.Update();
             LcdConsole.WriteLine("Starting...");
+
             try
             {
-                using (RobotMotors motors = new RobotMotors(MotorPort.OutA, MotorPort.OutB, MotorPort.OutC, SensorPort.In1) { MainMotorRatio = mainRatio, SecondaryMotorRatio = secondaryRatio, HandMotorRatio = handRatio })
+                using (PrinterRobot robot = new PrinterRobot() { })
                 {
                     // Set the TcpListener on port 13000.
                     Int32 port = 13000;
@@ -107,9 +118,7 @@ namespace EV3PrinterDriver
 
                     // Buffer for reading data
                     Byte[] bytes = new Byte[256];
-                    String data = null;
 
-                    RobotCommandFactory commandFactory = new RobotCommandFactory();
                     // Enter the listening loop.
                     while (run)
                     {
@@ -125,10 +134,16 @@ namespace EV3PrinterDriver
                         byte[] logBuffer = Encoding.ASCII.GetBytes(logs.ToString());
                         client.GetStream().Write(logBuffer, 0, logBuffer.Length);
 #endif
-                        motors.MainMotorSpeed = 64;
-                        motors.SecondaryMotorSpeed = 113; // adjust Y motor speed as X motor produces almost twice as much speed (0.56)
-                        motors.HandMotorSpeed = 127;
-                        data = null;
+                        // apply settings
+                        robot.RatioSettings[RobotSetup.XPort] = mainRatio;
+                        robot.RatioSettings[RobotSetup.YPort] = secondaryRatio;
+                        robot.RatioSettings[RobotSetup.PenPort] = handRatio;
+
+                        robot.SpeedSettings[RobotSetup.XPort] = 64;
+                        robot.SpeedSettings[RobotSetup.YPort] = 113; // adjust Y motor speed as X motor produces almost twice as much speed (0.56)
+                        robot.SpeedSettings[RobotSetup.PenPort] = 127;
+
+                        string data = null;
 
                         // Get a stream object for reading and writing
                         NetworkStream stream = client.GetStream();
@@ -148,16 +163,16 @@ namespace EV3PrinterDriver
                                 else
                                 {
                                     // get message type
-                                    IRobotCommand command = commandFactory.Create(message);
+                                    IRobotCommand command = RobotCommandFactory.Create(message);
                                     if (command != null)
-                                        motors.Queue(command);
+                                        robot.Queue(command);
                                     
                                     //
                                     Lcd.Clear();
                                     int line = 0;
-                                    Lcd.WriteText(Font.MediumFont, new Point(0, line), string.Format("X:{0}", motors.GetRawTacho(MotorPort.OutA)), true);
+                                    Lcd.WriteText(Font.MediumFont, new Point(0, line), string.Format("X:{0}", robot.Motors[RobotSetup.XPort].GetTachoCount()), true);
                                     line += (int)(Font.MediumFont.maxHeight);
-                                    Lcd.WriteText(Font.MediumFont, new Point(0, line), string.Format("Y:{0}", motors.GetRawTacho(MotorPort.OutB)), true);
+                                    Lcd.WriteText(Font.MediumFont, new Point(0, line), string.Format("Y:{0}", robot.Motors[RobotSetup.YPort].GetTachoCount()), true);
                                     line += (int)(Font.MediumFont.maxHeight);
                                     Lcd.Update();
 
@@ -171,12 +186,6 @@ namespace EV3PrinterDriver
             }
             catch (Exception ex)
             {
-                LcdConsole.WriteLine(ex.Message);
-                if (client.Connected)
-                {
-                    byte[] buffer = Encoding.ASCII.GetBytes(ex.Message);
-                    client.GetStream().Write(buffer, 0, buffer.Length);
-                }
                 throw;
             }
             finally
