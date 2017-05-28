@@ -1,9 +1,12 @@
 ﻿using EV3PrinterDriver.Collections;
 using EV3PrinterDriver.Commands;
+using EV3PrinterDriver.Robots;
+using MonoBrickFirmware.Display;
 using MonoBrickFirmware.Movement;
 using MonoBrickFirmware.Sensors;
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -11,23 +14,22 @@ using System.Threading;
 
 namespace EV3PrinterDriver
 {
-    abstract class RobotBase : IDisposable, IRobot
+    abstract class RobotBase : IRobot
     {
         bool disposed = false;
-        readonly EventWaitHandle _changedWaitHandle = new EventWaitHandle(false, EventResetMode.AutoReset);
-        readonly WaitHandle[] _motorTasks;
         static readonly ManualResetEvent _completedTask = new ManualResetEvent(true);
         public MotorSettingCollection<Motor> Motors { get; private set; }
         public MotorSettingCollection<sbyte> SpeedSettings { get; private set; }
         public MotorSettingCollection<float> RatioSettings { get; private set; }
-        readonly List<IRobotCommand> _commands = new List<IRobotCommand>();
+
+        BlockingCollection<IRobotCommand> _commands = new BlockingCollection<IRobotCommand>();
 
         Thread _thread;
-        bool _run = true;
+        CancellationTokenSource _cancelSrc = new CancellationTokenSource();
+        CancellationToken _cancel;
 
         public RobotBase(MotorPort[] motorPorts)
         {
-            _motorTasks = new WaitHandle[8];
             Motors = new MotorSettingCollection<Motor>(motorPorts.Length);
             SpeedSettings = new MotorSettingCollection<sbyte>(motorPorts.Length);
             RatioSettings = new MotorSettingCollection<float>(motorPorts.Length);
@@ -40,31 +42,15 @@ namespace EV3PrinterDriver
             }
 
             // 
+            _cancel = _cancelSrc.Token;
             _thread = new Thread(MotorPollThread);
             _thread.IsBackground = true;
             _thread.Start();
         }
-        
+
         public void Queue(IRobotCommand command)
         {
-            // make sure a single thread is changing values
-            lock (_commands)
-            {
-                _commands.Add(command);
-            }
-            // notify worker thread
-            _changedWaitHandle.Set();
-        }
-
-        protected List<IRobotCommand> DequeueAll()
-        {
-            // clone the current command stack
-            lock (_commands)
-            {
-                var temp = new List<IRobotCommand>(_commands);
-                _commands.Clear();
-                return temp;
-            }
+            _commands.Add(command);
         }
 
         void Do(Action<Motor> action)
@@ -77,8 +63,15 @@ namespace EV3PrinterDriver
         /// <summary>
         /// Turns off motor
         /// </summary>
-        public void Off()
+        public virtual void Off()
         {
+            // clear any pending commands
+            var oldCommands = _commands;
+            _commands = new BlockingCollection<IRobotCommand>();
+            oldCommands.CompleteAdding(); // prevent any new commands
+            oldCommands.Dispose();
+
+            // 
             Do((m) => m.Off());
         }
 
@@ -97,9 +90,9 @@ namespace EV3PrinterDriver
 
             if (disposing)
             {
-                _run = false;
-                _changedWaitHandle.Set();
+                _cancelSrc.Cancel();
                 _thread.Join();
+                _commands.Dispose();
                 Do((m) => m.Off());
                 Motors.Clear();
             }
@@ -114,20 +107,22 @@ namespace EV3PrinterDriver
         public void ResetTachos()
         {
             lock (_commands)
-                _commands.Clear();
-            Do((m) => m.ResetTacho());
+            {
+                Do((m) => m.ResetTacho());
+            }
         }
 
         protected void ResetTacho(MotorPort port)
         {
             lock (_commands)
-                _commands.Clear();
-            Motors[port].ResetTacho();
+            {
+                Motors[port].ResetTacho();
+            }
         }
 
         public WaitHandle CreateRotateTask(MotorPort port, int targetTacho)
         {
-            Motor motor = Motors[port];            
+            Motor motor = Motors[port];
             // current pos
             int motorTacho = motor.GetTachoCount();
 
@@ -143,38 +138,44 @@ namespace EV3PrinterDriver
             return _completedTask;
         }
 
-        int _taskCounter = 0;
-        public void Queue(WaitHandle taskHandle)
+        public event EventHandler<DataEventArgs> OnData;
+        protected void SendData(String data)
         {
-            _motorTasks[_taskCounter++] = taskHandle;
+            OnData?.Invoke(this, new DataEventArgs(data));
         }
+
 
         void MotorPollThread()
         {
-            while (_run)
+            try
             {
-                // wait until there is something to do
-                _changedWaitHandle.WaitOne();
-
-                // take all pending comamnds
-                List<IRobotCommand> commands = DequeueAll();
-                for (int i = 0; i < commands.Count && _run; i++)
+                while (true)
                 {
-                    IRobotCommand command = commands[i];
-                    // clear task list
-                    for (int t = 0; t < _motorTasks.Length; t++)
-                        _motorTasks[t] = _completedTask;
-                    _taskCounter = 0;
+                    // take all pending comamnds
+                    IRobotCommand command = null;
+                    if (_commands.TryTake(out command, Timeout.Infinite, _cancel))
+                    {
+                        // do it!
+                        command.Do(this);
 
-                    // do it!
-                    command.Do(this);
-
-                    // wait for all motors to finish
-                    WaitHandle.WaitAll(_motorTasks);
-
-                    // anything to do after a command executed?
-                    PostCommand();
+                        // anything to do after a command executed?
+                        PostCommand();
+                    }
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                // normal exception when thread is stopped
+            }
+            catch (Exception ex)
+            {
+                // 
+                while (ex != null)
+                {
+                    LcdConsole.WriteLine(ex.Message);
+                    ex = ex.InnerException;
+                }
+                throw;
             }
         }
 
@@ -182,5 +183,7 @@ namespace EV3PrinterDriver
         {
             // does nothing
         }
+
+        public abstract void Calibrate(Func<bool> stop);
     }
 }

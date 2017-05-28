@@ -18,5 +18,10 @@ namespace EV3PrinterDriver.Commands
             robot.CreateRotateTask(RobotSetup.YPort, Y).WaitOne();
             robot.Motors[RobotSetup.YPort].ResetTacho();
         }
+
+        public override string ToString()
+        {
+            return "FEED: " + Y.ToString();
+        }
     }
 }

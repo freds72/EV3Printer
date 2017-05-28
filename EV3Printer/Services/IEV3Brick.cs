@@ -9,6 +9,7 @@ namespace EV3Printer.Services
     public interface IEV3Brick
     {
         event EventHandler<LogEventArgs> OnLog;
+        event EventHandler<DataEventArgs> OnData;
         event EventHandler<ConnectedEventArgs> OnConnect;
 
         bool IsConnected { get; }

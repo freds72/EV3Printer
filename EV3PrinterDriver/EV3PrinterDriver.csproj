@@ -43,11 +43,14 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Collections\MotorSettingCollection.cs" />
+    <Compile Include="Commands\ClearCommand.cs" />
     <Compile Include="Commands\HandCommand.cs" />
     <Compile Include="Commands\IRobotCommand.cs" />
     <Compile Include="Commands\FeedCommand.cs" />
     <Compile Include="Commands\ScanCommand.cs" />
+    <Compile Include="Commands\StopCommand.cs" />
     <Compile Include="RobotSetup.cs" />
+    <Compile Include="Robots\DataEventArgs.cs" />
     <Compile Include="Robots\IPrinterRobot.cs" />
     <Compile Include="Robots\IRobot.cs" />
     <Compile Include="Robots\IScannerRobot.cs" />

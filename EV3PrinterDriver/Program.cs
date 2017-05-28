@@ -1,10 +1,12 @@
 ﻿using EV3PrinterDriver.Commands;
+using EV3PrinterDriver.Robots;
 using MonoBrickFirmware.Display;
 using MonoBrickFirmware.Movement;
 using MonoBrickFirmware.Sensors;
 using MonoBrickFirmware.UserInput;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -36,7 +38,7 @@ namespace EV3PrinterDriver
                 run = false;
             };
 
-            LcdConsole.WriteLine("EV3Printer 2.1");
+            LcdConsole.WriteLine("EV3Scanner 3.0");
 
             float mainRatio = 1.667f;
             float secondaryRatio = 3.0f;
@@ -44,58 +46,6 @@ namespace EV3PrinterDriver
 #if DUMPLOGS
             StringBuilder logs = new StringBuilder();
 #endif
-            using (PrinterRobot robot = new PrinterRobot() { })
-            {
-                robot.RatioSettings[RobotSetup.XPort] = mainRatio;
-                robot.RatioSettings[RobotSetup.YPort] = secondaryRatio;
-                robot.RatioSettings[RobotSetup.PenPort] = handRatio;
-
-                EV3TouchSensor sensor1 = new EV3TouchSensor(RobotSetup.XResetPort);
-                
-                int pause = 0;
-                buttons.EnterReleased += () =>
-                {
-                    pause++;
-                };
-                int currentPause = 0;
-
-                LcdConsole.WriteLine("Calibrating...");
-
-                robot.Calibrate(step =>
-                {
-                    if (!run) return true;
-                    switch (step)
-                    {
-                        case PrinterRobot.CalibrationSteps.X:
-                            if (sensor1.IsPressed())
-                                return true;
-                            break;
-
-                        case PrinterRobot.CalibrationSteps.Pause:
-                            if (currentPause != pause)
-                            {
-                                currentPause = pause;
-                                return true;
-                            }
-                            break;
-                    }
-                    /*
-                    Lcd.Clear();
-                    int line = 0;
-                    Lcd.WriteText(Font.MediumFont, new Point(0, line), "Calibrating...", true);
-                    line += (int)(Font.MediumFont.maxHeight);
-                    Lcd.WriteText(Font.MediumFont, new Point(0, line), string.Format("Refl.: {0} / {1}", sensor2.ReadRaw(), sensor2max), true);
-                    line += (int)(Font.MediumFont.maxHeight);
-                    Lcd.WriteText(Font.MediumFont, new Point(0, line), string.Format("A: {0}", motors.GetRawTacho(MotorPort.OutA)), true);
-                    line += (int)(Font.MediumFont.maxHeight);
-                    Lcd.WriteText(Font.MediumFont, new Point(0, line), string.Format("B: {0}", motors.GetRawTacho(MotorPort.OutB)), true);
-                    line += (int)(Font.MediumFont.maxHeight);
-                    Lcd.Update();
-                    */
-
-                    return false;
-                });
-            }
             // stop here
             if (!run)
                 return;
@@ -105,8 +55,27 @@ namespace EV3PrinterDriver
 
             try
             {
-                using (PrinterRobot robot = new PrinterRobot() { })
+                using (IRobot robot = new ScannerRobot() { })
                 {
+                    // apply settings
+                    robot.RatioSettings[RobotSetup.XPort] = mainRatio;
+                    robot.RatioSettings[RobotSetup.YPort] = secondaryRatio;
+                    robot.RatioSettings[RobotSetup.PenPort] = handRatio;
+
+                    // printer
+                    // robot.SpeedSettings[RobotSetup.XPort] = 64;
+                    // robot.SpeedSettings[RobotSetup.YPort] = 113; // adjust Y motor speed as X motor produces almost twice as much speed (0.56)
+                    // robot.SpeedSettings[RobotSetup.PenPort] = 127;
+
+                    // scanner
+                    robot.SpeedSettings[RobotSetup.XPort] = 16;
+                    robot.SpeedSettings[RobotSetup.YPort] = 113; // adjust Y motor speed as X motor produces almost twice as much speed (0.56)
+                    robot.SpeedSettings[RobotSetup.PenPort] = 127;
+
+                    // calibrate robot
+                    LcdConsole.WriteLine("Calibrating...");
+                    robot.Calibrate(() => { return !run; });
+
                     // Set the TcpListener on port 13000.
                     Int32 port = 13000;
 
@@ -124,68 +93,128 @@ namespace EV3PrinterDriver
                     {
                         LcdConsole.WriteLine("Waiting for a connection... ");
 
+                        // blinking green
+                        Buttons.LedPattern(4);
+
                         // Perform a blocking call to accept requests.
                         // You could also user server.AcceptSocket() here.
                         client = server.AcceptTcpClient();
                         LcdConsole.WriteLine("Connected!");
+
+                        // turn off
+                        Buttons.LedPattern(0);
+
+                        // Get a stream object for reading and writing
+                        NetworkStream stream = client.GetStream();
+
+                        // if robot is sending data, publish to network channel
+                        EventHandler<DataEventArgs> dataCB = (o, e) => {
+                            try
+                            {
+                                byte[] msg = System.Text.Encoding.ASCII.GetBytes(e.Data);
+                                stream.Write(msg, 0, msg.Length);
+                            }
+                            catch(IOException)
+                            {
+                                // disconnected
+                                robot.Off();
+                            }
+                        };
+
+                        robot.OnData += dataCB;
 
 #if DUMPLOGS
                         // DEBUG
                         byte[] logBuffer = Encoding.ASCII.GetBytes(logs.ToString());
                         client.GetStream().Write(logBuffer, 0, logBuffer.Length);
 #endif
-                        // apply settings
-                        robot.RatioSettings[RobotSetup.XPort] = mainRatio;
-                        robot.RatioSettings[RobotSetup.YPort] = secondaryRatio;
-                        robot.RatioSettings[RobotSetup.PenPort] = handRatio;
-
-                        robot.SpeedSettings[RobotSetup.XPort] = 64;
-                        robot.SpeedSettings[RobotSetup.YPort] = 113; // adjust Y motor speed as X motor produces almost twice as much speed (0.56)
-                        robot.SpeedSettings[RobotSetup.PenPort] = 127;
-
-                        string data = null;
-
-                        // Get a stream object for reading and writing
-                        NetworkStream stream = client.GetStream();
-
-                        int read;
-                        string message = "";
-                        // Loop to receive all the data sent by the client.
-                        while (run && (read = stream.Read(bytes, 0, bytes.Length)) != 0)
+                        try
                         {
-                            // Translate data bytes to a ASCII string.
-                            data = System.Text.Encoding.ASCII.GetString(bytes, 0, read);
-                            for (int i = 0; i < read; i++)
-                            {
-                                char c = data[i];
-                                if (c != '\0')
-                                    message += c;
-                                else
-                                {
-                                    // get message type
-                                    IRobotCommand command = RobotCommandFactory.Create(message);
-                                    if (command != null)
-                                        robot.Queue(command);
-                                    
-                                    //
-                                    Lcd.Clear();
-                                    int line = 0;
-                                    Lcd.WriteText(Font.MediumFont, new Point(0, line), string.Format("X:{0}", robot.Motors[RobotSetup.XPort].GetTachoCount()), true);
-                                    line += (int)(Font.MediumFont.maxHeight);
-                                    Lcd.WriteText(Font.MediumFont, new Point(0, line), string.Format("Y:{0}", robot.Motors[RobotSetup.YPort].GetTachoCount()), true);
-                                    line += (int)(Font.MediumFont.maxHeight);
-                                    Lcd.Update();
+                            string data = null;
 
-                                    // 
-                                    message = "";
+                            int read;
+                            string message = "";
+                            // Loop to receive all the data sent by the client.
+                            while (run && (read = stream.Read(bytes, 0, bytes.Length)) != 0)
+                            {
+                                // Translate data bytes to a ASCII string.
+                                data = System.Text.Encoding.ASCII.GetString(bytes, 0, read);
+                                for (int i = 0; i < read; i++)
+                                {
+                                    char c = data[i];
+                                    if (c != '\0')
+                                        message += c;
+                                    else
+                                    {
+                                        // get message type
+                                        IRobotCommand command = RobotCommandFactory.Create(message);
+                                        if (command != null)
+                                            robot.Queue(command);                                                                  
+                                        // 
+                                        message = "";
+                                    }
                                 }
                             }
+                        }
+                        catch(IOException)
+                        {
+                            LcdConsole.Clear();
+                            LcdConsole.WriteLine("Disconnected!");
+
+                            // stop sending data
+                            robot.OnData -= dataCB;
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
+                /*
+#if DEBUG
+                // Set the TcpListener on port 13000.
+                int port = 13000;
+
+                // TcpListener server = new TcpListener(port);
+                TcpListener debugServer = new TcpListener(IPAddress.Any, port);
+
+                // Start listening for client requests.
+                debugServer.Start();
+
+                LcdConsole.WriteLine("Wait debugger");
+
+                // Perform a blocking call to accept requests.
+                // You could also user server.AcceptSocket() here.
+                using (TcpClient debugClient = debugServer.AcceptTcpClient())
+                {
+                    // Get a stream object for reading and writing
+                    NetworkStream stream = debugClient.GetStream();
+
+                    foreach (String it in Assembly.GetExecutingAssembly().GetManifestResourceNames())
+                    {
+                        byte[] msg = System.Text.Encoding.ASCII.GetBytes(it + "\n");
+                        // Send back a response.
+                        stream.Write(msg, 0, msg.Length);
+                    }
+
+                    while (ex != null)
+                    {
+                        byte[] msg = System.Text.Encoding.ASCII.GetBytes(ex.Message + "\n");
+                        // Send back a response.
+                        stream.Write(msg, 0, msg.Length);
+
+                        msg = System.Text.Encoding.ASCII.GetBytes(ex.StackTrace + "\n");
+                        // Send back a response.
+                        stream.Write(msg, 0, msg.Length);
+                        ex = ex.InnerException;
+                    }
+                }
+
+                // Stop listening for new clients.
+                debugServer.Stop();
+#else
+                throw;
+#endif
+        */
                 throw;
             }
             finally

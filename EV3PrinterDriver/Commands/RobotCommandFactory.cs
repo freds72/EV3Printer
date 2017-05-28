@@ -23,7 +23,11 @@ namespace EV3PrinterDriver.Commands
             else if (token == FeedCommand.Token)
                 return new FeedCommand() { Y = int.Parse(tokens[1]) };
             else if (token == ScanCommand.Token)
-                return new ScanCommand() { IsActive = (int.Parse(tokens[1]) > 0) };
+                return new ScanCommand() { Delay = int.Parse(tokens[1]) };
+            else if (token == StopCommand.Token)
+                return new StopCommand();
+            else if (token == ClearCommand.Token)
+                return new ClearCommand();
 
             // unknonw command
             return null;

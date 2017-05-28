@@ -1,7 +1,7 @@
 ﻿namespace EV3PrinterDriver.Robots
 {
-    interface IScannerRobot : IRobot
+    interface IScannerRobot
     {
-        void Scan(bool startStop);
+        void Scan(int delay);
     }
 }

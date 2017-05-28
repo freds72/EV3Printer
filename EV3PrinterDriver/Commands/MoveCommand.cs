@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace EV3PrinterDriver.Commands
 {
@@ -16,13 +17,22 @@ namespace EV3PrinterDriver.Commands
 
         public void Do(IRobot robot)
         {
+            WaitHandle[] handles = new WaitHandle[2];
             // ------------------------------------
             // main motor rotation
-            robot.Queue(robot.CreateRotateTask(RobotSetup.XPort, X));
+            handles[0] = robot.CreateRotateTask(RobotSetup.XPort, X);
 
             // -----------------------------------------------------
             // secondary motor rotation 
-            robot.Queue(robot.CreateRotateTask(RobotSetup.YPort, Y));
+            handles[1] = robot.CreateRotateTask(RobotSetup.YPort, Y);
+
+            // sync motors
+            WaitHandle.WaitAll(handles);
+        }
+
+        public override string ToString()
+        {
+            return string.Format("TO: {0}/{1}", X, Y);
         }
     }
 }

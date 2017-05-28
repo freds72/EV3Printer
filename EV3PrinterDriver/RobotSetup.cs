@@ -12,9 +12,12 @@ namespace EV3PrinterDriver
     /// </summary>
     static class RobotSetup
     {
-        public static readonly MotorPort PenPort = MotorPort.OutC;
         public static readonly MotorPort XPort = MotorPort.OutA;
         public static readonly MotorPort YPort = MotorPort.OutB;
+        public static readonly MotorPort PenPort = MotorPort.OutC;
         public static readonly SensorPort XResetPort = SensorPort.In1;
+        public static readonly SensorPort ColorPort = SensorPort.In2;
+
+        public static readonly int CalibrationStep1 = 0;
     }
 }

@@ -19,16 +19,7 @@ namespace EV3PrinterDriver
             _resetSensor = new EV3TouchSensor(RobotSetup.XResetPort);
         }
 
-        public enum CalibrationSteps
-        {
-            X,
-            Y,
-            Hand,
-            Test,
-            Pause
-        }
-
-        public void Calibrate(Func<CalibrationSteps, bool> calibrated, bool skip = false)
+        public override void Calibrate(Func<bool> stop)
         {
             Motor motor = null;
 
@@ -36,7 +27,7 @@ namespace EV3PrinterDriver
 
             motor = Motors[RobotSetup.XPort];
             motor.SpeedProfile(16, 0, (uint)Math.Abs(1800 * RatioSettings[RobotSetup.XPort]), 0, false);
-            while (!calibrated(CalibrationSteps.X)) ;
+            while (_resetSensor.IsPressed() == false && stop() == false) ;
             Off();
             ResetTachos();
         }

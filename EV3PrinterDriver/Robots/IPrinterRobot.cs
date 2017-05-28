@@ -4,7 +4,7 @@ using System.Threading;
 
 namespace EV3PrinterDriver.Robots
 {
-    interface IPrinterRobot : IRobot
+    interface IPrinterRobot
     {
     }
 }

@@ -103,17 +103,29 @@
     <Compile Include="Converters\BooleanToVisibilityConverter.cs" />
     <Compile Include="Converters\InkStrokesToPointsConverter.cs" />
     <Compile Include="Converters\PointerEventArgsToPenConverter.cs" />
+    <Compile Include="Extensions\MathHelper.cs" />
     <Compile Include="MainPage.xaml.cs">
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Models\Pixel.cs" />
     <Compile Include="Models\PointStrokeCollection.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Services\ConnectedEventArgs.cs" />
+    <Compile Include="Services\DataEventArgs.cs" />
+    <Compile Include="Services\ILogger.cs" />
+    <Compile Include="Services\Logger.cs" />
+    <Compile Include="Services\MockBrick.cs" />
+    <Compile Include="Services\PrinterSettings.cs" />
     <Compile Include="Services\EV3Brick.cs" />
     <Compile Include="Services\IEV3Brick.cs" />
     <Compile Include="Services\LogEventArgs.cs" />
+    <Compile Include="Services\ScannerSettings.cs" />
+    <Compile Include="Services\SystemSettings.cs" />
+    <Compile Include="ViewModels\PrinterViewModel.cs" />
     <Compile Include="ViewModels\MainViewModel.cs" />
     <Compile Include="ViewModels\PenCommandArgs.cs" />
+    <Compile Include="ViewModels\PrinterViewModelBase.cs" />
+    <Compile Include="ViewModels\ScannerViewModel.cs" />
     <Compile Include="ViewModels\ViewModelLocator.cs" />
   </ItemGroup>
   <ItemGroup>

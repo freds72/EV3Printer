@@ -13,6 +13,7 @@ namespace EV3Printer.Services
         Socket _socket;
 
         public event EventHandler<LogEventArgs> OnLog;
+        public event EventHandler<DataEventArgs> OnData;
         public event EventHandler<ConnectedEventArgs> OnConnect;
 
         public string ServerAddress { get; private set; }
@@ -21,6 +22,33 @@ namespace EV3Printer.Services
 
         public EV3Brick()
         {
+        }
+
+        private void ResetBuffer(SocketAsyncEventArgs e)
+        {
+            var buffer = new Byte[1024];
+
+            e.SetBuffer(buffer, 0, 1024);
+        }
+
+        private void SocketReceive(Object sender, SocketAsyncEventArgs e)
+        {
+            ProcessData(e.Buffer, e.BytesTransferred);
+
+            ResetBuffer(e);
+
+            _socket.ReceiveAsync(e);
+        }
+
+        private void ProcessData(Byte[] data, Int32 count)
+        {
+            if (count > 0)
+            {
+                string errorLog = System.Text.Encoding.ASCII.GetString(data, 0, count);
+                OnData?.Invoke(this, new DataEventArgs(errorLog));
+
+                // System.Diagnostics.Debug.WriteLine(errorLog);
+            }
         }
 
         public void Connect(string serverAddress = "10.0.1.1:13000")
@@ -59,14 +87,8 @@ namespace EV3Printer.Services
                 // listen 
                 SocketAsyncEventArgs traceEventArg = new SocketAsyncEventArgs();
                 traceEventArg.RemoteEndPoint = hostEntry;
-                traceEventArg.Completed += new EventHandler<SocketAsyncEventArgs>(delegate (object ss, SocketAsyncEventArgs ee)
-                {
-                    byte[] buffer = ee.Buffer;
-                    string errorLog = System.Text.Encoding.ASCII.GetString(buffer, 0, buffer.Length);
-                    OnLog?.Invoke(this, new LogEventArgs(errorLog));
-                    System.Diagnostics.Debug.WriteLine(errorLog);
-                });
-                traceEventArg.SetBuffer(new byte[1024], 0, 1024);
+                ResetBuffer(traceEventArg);
+                traceEventArg.Completed += SocketReceive;                
                 _socket.ReceiveAsync(traceEventArg);
             });
 

@@ -21,5 +21,10 @@ namespace EV3PrinterDriver.Commands
             // Hand (must not be sync w/ motors)
             robot.Motors[RobotSetup.PenPort].SpeedProfile((sbyte)(Up ? 127 : -127), 0, 180, 0, true).WaitOne();
         }
+
+        public override string ToString()
+        {
+            return Up ? "UP" : "DOWN";
+        }
     }
 }
